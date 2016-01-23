@@ -33,6 +33,99 @@ A sample call to your method:
 RetrievedData data = yourMethod(new long[]{123, 456, 789});
 */
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
 public class HttpPeformance {
 
+  public static void main(String[] args) throws JSONException {
+
+    JSONObject performanceData = adData(new long[]{123, 456, 789});
+    System.out.println(performanceData);
+  }
+
+  public static JSONObject adData(long[] id) throws JSONException {
+
+    StringBuilder stringBuilder = new StringBuilder();
+    InputStreamReader inputStreamReader = null;
+
+    for (long urlId : id) {
+      URLConnection urlConnection;
+      String webUrl = "http://dan.triplelift.net/code_test.php?advertiser_id=";
+      webUrl = webUrl + urlId;
+
+      try {
+        // get url, make connection
+        URL newUrl = new URL(webUrl);
+        urlConnection = newUrl.openConnection();
+
+        if (urlConnection != null) {
+          urlConnection.setReadTimeout(200);
+        }
+        if (urlConnection != null && urlConnection.getInputStream() != null) {
+          inputStreamReader = new InputStreamReader(urlConnection.getInputStream(), Charset.defaultCharset());
+          BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+
+          int dataInput;
+          while ((dataInput = bufferedReader.read()) != -1) {
+            stringBuilder.append((char) dataInput);
+          }
+          bufferedReader.close();
+        }
+        if (inputStreamReader != null) {
+          inputStreamReader.close();
+        }
+      } catch (Exception e) {
+        System.out.println("advertiser " + urlId + " was excluded");
+      }
+    }
+
+    // put stringbuilder into a string
+    String sbResult = stringBuilder.toString();
+    sbResult = sbResult.replaceAll("\\]", ",");
+    sbResult = sbResult.replaceAll("\\[", "");
+    sbResult = "[" + sbResult + "]";
+
+    // convert string to json array
+    JSONArray array = new JSONArray(sbResult);
+    JSONObject object;
+    int numberClicks;
+    int numberImpressions;
+
+    HashMap<String, List<Integer>> clicksImpressions = new HashMap<String, List<Integer>>();
+
+    // compute clicks and impressions according to date value
+    for (int i = 0; i < array.length(); i++) {
+      object = array.getJSONObject(i);
+      String date = object.getString("ymd");
+      List<Integer> aggregateCount = new ArrayList<Integer>();
+
+      if (!clicksImpressions.containsKey(date)) {
+        numberClicks = object.getInt("numberClicks");
+        numberImpressions = object.getInt("numberImpressions");
+      } else {
+        aggregateCount = clicksImpressions.get(date);
+        numberClicks = aggregateCount.get(0) + object.getInt("numberClicks");
+        numberImpressions = aggregateCount.get(1) + object.getInt("numberImpressions");
+      }
+
+      aggregateCount.clear();
+      aggregateCount.add(numberClicks);
+      aggregateCount.add(numberImpressions);
+      clicksImpressions.put(date, aggregateCount);
+    }
+
+    // save to JSON object
+    return new JSONObject(clicksImpressions);
+  }
 }
